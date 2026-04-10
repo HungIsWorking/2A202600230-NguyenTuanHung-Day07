@@ -67,7 +67,6 @@
 
 ### Baseline Analysis
 
-Chạy `ChunkingStrategyComparator().compare()` trên 2-3 tài liệu:
 
 | Tài liệu | Strategy | Chunk Count | Avg Length | Preserves Context? |
 |-----------|----------|-------------|------------|-------------------|
@@ -80,11 +79,9 @@ Chạy `ChunkingStrategyComparator().compare()` trên 2-3 tài liệu:
 **Loại:** SemanticChunker (custom strategy)
 
 **Mô tả cách hoạt động:**
-> *Viết 3-4 câu: strategy chunk thế nào? Dựa trên dấu hiệu gì?*
 > Chiến lược `SemanticChunker` hoạt động bằng cách chia văn bản dựa trên cấu trúc ngữ nghĩa của tài liệu Markdown. Nó sử dụng biểu thức chính quy (regex) để xác định các tiêu đề chương (`##`) và tiêu đề mục (`###`). Thay vì cắt văn bản một cách tùy tiện, nó coi mỗi chương và mỗi mục là một đơn vị ngữ nghĩa và tạo ra một chunk cho mỗi đơn vị đó. Điều này đảm bảo rằng các ý tưởng và khái niệm hoàn chỉnh được giữ lại trong cùng một chunk.
 
 **Tại sao tôi chọn strategy này cho domain nhóm?**
-> *Viết 2-3 câu: domain có pattern gì mà strategy khai thác?*
 > Tôi chọn chiến lược này vì domain "Software Engineering Principles" có cấu trúc rất rõ ràng với các chương và mục riêng biệt cho từng nguyên lý. `SemanticChunker` khai thác trực tiếp pattern này, đảm bảo rằng toàn bộ phần giải thích về một nguyên lý (ví dụ: Single Responsibility Principle) nằm gọn trong một chunk duy nhất, giúp việc truy xuất thông tin trở nên chính xác và đầy đủ ngữ cảnh hơn.
 
 **Code snippet (nếu custom):**
@@ -162,27 +159,22 @@ Giải thích cách tiếp cận của bạn khi implement các phần chính tr
 ### Chunking Functions
 
 **`SentenceChunker.chunk`** — approach:
-> *Viết 2-3 câu: dùng regex gì để detect sentence? Xử lý edge case nào?*
 > Tôi đã sử dụng biểu thức chính quy `r'(?<=[.!?])\s+'` để chia văn bản thành các câu. Regex này tìm kiếm các khoảng trắng theo sau dấu chấm, chấm than, hoặc chấm hỏi. Sau khi chia, tôi đã xử lý các trường hợp edge case bằng cách loại bỏ các chuỗi rỗng hoặc chỉ chứa khoảng trắng có thể xuất hiện do nhiều khoảng trắng liên tiếp trong văn bản gốc.
 
 **`RecursiveChunker.chunk` / `_split`** — approach:
-> *Viết 2-3 câu: algorithm hoạt động thế nào? Base case là gì?*
 > Thuật toán hoạt động bằng cách thử chia văn bản với một danh sách các ký tự phân tách theo thứ tự ưu tiên. Base case của đệ quy là khi một đoạn văn bản đã nhỏ hơn `chunk_size` hoặc khi không còn ký tự phân tách nào để thử. Trong trường hợp sau, nó sẽ buộc phải cắt đoạn văn bản thành các phần có kích thước bằng `chunk_size`.
 
 ### EmbeddingStore
 
 **`add_documents` + `search`** — approach:
-> *Viết 2-3 câu: lưu trữ thế nào? Tính similarity ra sao?*
 > `add_documents` chuyển đổi mỗi tài liệu thành một bản ghi chứa embedding và metadata, sau đó lưu vào một danh sách trong bộ nhớ (`self._store`). `search` tính toán độ tương đồng cosine (thông qua tích vô hướng của các vector đã được chuẩn hóa) giữa embedding của câu hỏi và tất cả các embedding đã lưu, sau đó sắp xếp và trả về top-K kết quả có điểm cao nhất.
 
 **`search_with_filter` + `delete_document`** — approach:
-> *Viết 2-3 câu: filter trước hay sau? Delete bằng cách nào?*
 > `search_with_filter` thực hiện việc lọc trước (pre-filtering): nó tạo một danh sách con các bản ghi khớp với `metadata_filter` rồi mới thực hiện tìm kiếm tương đồng trên danh sách con đó. `delete_document` hoạt động bằng cách tạo lại danh sách `self._store`, chỉ bao gồm những bản ghi không có `doc_id` khớp với id cần xóa.
 
 ### KnowledgeBaseAgent
 
 **`answer`** — approach:
-> *Viết 2-3 câu: prompt structure? Cách inject context?*
 > Cấu trúc prompt bao gồm ba phần: một chỉ dẫn chung, phần ngữ cảnh được truy xuất, và câu hỏi của người dùng. Tôi đã inject ngữ cảnh bằng cách lặp qua các chunk được truy xuất từ `EmbeddingStore` và định dạng chúng thành một danh sách có dấu gạch đầu dòng, đặt chúng dưới tiêu đề "Context:".
 
 ### Test Results
@@ -257,7 +249,6 @@ tests/test_solution.py::TestEmbeddingStoreDeleteDocument::test_delete_returns_tr
 | 5 | The system should be scalable. | The system must handle many users. | low | -0.229 | No |
 
 **Kết quả nào bất ngờ nhất? Điều này nói gì về cách embeddings biểu diễn nghĩa?**
-> *Viết 2-3 câu:*
 > Kết quả bất ngờ nhất là cặp 1 và 5 có điểm tương đồng âm, dù về mặt ngữ nghĩa chúng khá liên quan. Điều này cho thấy `MockEmbedder` rất đơn giản và không thực sự nắm bắt được ngữ nghĩa sâu sắc; nó có thể chỉ dựa trên sự trùng lặp của các từ hoặc các mẫu ký tự bề mặt, dẫn đến các dự đoán sai lệch.
 
 ---
