@@ -47,8 +47,32 @@ class SentenceChunker:
         self.max_sentences_per_chunk = max(1, max_sentences_per_chunk)
 
     def chunk(self, text: str) -> list[str]:
-        # TODO: split into sentences, group into chunks
-        raise NotImplementedError("Implement SentenceChunker.chunk")
+        # Split into sentences using regex
+        # Match sentence boundaries: '. ', '! ', '? ', or '.\n'
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = [s.strip() for s in sentences if s.strip()]
+        
+        if not sentences:
+            return []
+        
+        chunks: list[str] = []
+        current_chunk: list[str] = []
+        sentence_count = 0
+        
+        for sentence in sentences:
+            current_chunk.append(sentence)
+            sentence_count += 1
+            
+            if sentence_count >= self.max_sentences_per_chunk:
+                chunks.append(' '.join(current_chunk))
+                current_chunk = []
+                sentence_count = 0
+        
+        # Add remaining sentences
+        if current_chunk:
+            chunks.append(' '.join(current_chunk))
+        
+        return chunks
 
 
 class RecursiveChunker:
@@ -66,12 +90,68 @@ class RecursiveChunker:
         self.chunk_size = chunk_size
 
     def chunk(self, text: str) -> list[str]:
-        # TODO: implement recursive splitting strategy
-        raise NotImplementedError("Implement RecursiveChunker.chunk")
+        if not text:
+            return []
+        return self._split(text, self.separators)
 
     def _split(self, current_text: str, remaining_separators: list[str]) -> list[str]:
-        # TODO: recursive helper used by RecursiveChunker.chunk
-        raise NotImplementedError("Implement RecursiveChunker._split")
+        # Base case: if current text fits in chunk_size, return it
+        if len(current_text) <= self.chunk_size:
+            return [current_text] if current_text else []
+        
+        # Base case: no more separators to try
+        if not remaining_separators:
+            # Force split at chunk_size boundary
+            chunks = []
+            for i in range(0, len(current_text), self.chunk_size):
+                chunk = current_text[i:i + self.chunk_size]
+                if chunk:
+                    chunks.append(chunk)
+            return chunks
+        
+        # Try the first separator
+        separator = remaining_separators[0]
+        rest = remaining_separators[1:]
+        
+        # Split by the separator
+        if separator == "":
+            # Empty separator means split character by character
+            chunks = []
+            for i in range(0, len(current_text), self.chunk_size):
+                chunk = current_text[i:i + self.chunk_size]
+                if chunk:
+                    chunks.append(chunk)
+            return chunks
+        
+        parts = current_text.split(separator)
+        
+        # Try to merge parts while respecting chunk size
+        good_chunks = []
+        for i, part in enumerate(parts):
+            # Reconstruct with separator if not the last part
+            reconstructed = part if i == len(parts) - 1 else part + separator
+            
+            if len(reconstructed) <= self.chunk_size:
+                good_chunks.append(reconstructed)
+            else:
+                # This part is too big, need to recursively split it
+                sub_chunks = self._split(part, rest)
+                good_chunks.extend(sub_chunks)
+        
+        # Merge consecutive small chunks if possible
+        merged = []
+        current = ""
+        for chunk in good_chunks:
+            if len(current) + len(chunk) <= self.chunk_size:
+                current += chunk
+            else:
+                if current:
+                    merged.append(current)
+                current = chunk
+        if current:
+            merged.append(current)
+        
+        return merged
 
 
 def _dot(a: list[float], b: list[float]) -> float:
@@ -86,13 +166,51 @@ def compute_similarity(vec_a: list[float], vec_b: list[float]) -> float:
 
     Returns 0.0 if either vector has zero magnitude.
     """
-    # TODO: implement cosine similarity formula
-    raise NotImplementedError("Implement compute_similarity")
+    # Compute dot product
+    dot_product = _dot(vec_a, vec_b)
+    
+    # Compute magnitudes
+    mag_a = math.sqrt(sum(x * x for x in vec_a)) or 1.0
+    mag_b = math.sqrt(sum(x * x for x in vec_b)) or 1.0
+    
+    # Avoid division by zero
+    if mag_a == 0.0 or mag_b == 0.0:
+        return 0.0
+    
+    return dot_product / (mag_a * mag_b)
 
 
 class ChunkingStrategyComparator:
     """Run all built-in chunking strategies and compare their results."""
 
     def compare(self, text: str, chunk_size: int = 200) -> dict:
-        # TODO: call each chunker, compute stats, return comparison dict
-        raise NotImplementedError("Implement ChunkingStrategyComparator.compare")
+        # Call each chunking strategy
+        fixed_chunker = FixedSizeChunker(chunk_size=chunk_size, overlap=0)
+        fixed_chunks = fixed_chunker.chunk(text)
+        
+        sentence_chunker = SentenceChunker(max_sentences_per_chunk=3)
+        sentence_chunks = sentence_chunker.chunk(text)
+        
+        recursive_chunker = RecursiveChunker(chunk_size=chunk_size)
+        recursive_chunks = recursive_chunker.chunk(text)
+        
+        # Compute statistics for each strategy
+        result = {
+            'fixed_size': {
+                'count': len(fixed_chunks),
+                'avg_length': sum(len(c) for c in fixed_chunks) / len(fixed_chunks) if fixed_chunks else 0,
+                'chunks': fixed_chunks,
+            },
+            'by_sentences': {
+                'count': len(sentence_chunks),
+                'avg_length': sum(len(c) for c in sentence_chunks) / len(sentence_chunks) if sentence_chunks else 0,
+                'chunks': sentence_chunks,
+            },
+            'recursive': {
+                'count': len(recursive_chunks),
+                'avg_length': sum(len(c) for c in recursive_chunks) / len(recursive_chunks) if recursive_chunks else 0,
+                'chunks': recursive_chunks,
+            },
+        }
+        
+        return result
